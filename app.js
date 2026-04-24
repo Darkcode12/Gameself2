@@ -4,12 +4,35 @@
 let games = JSON.parse(localStorage.getItem('gameshelf_v2') || '[]');
 let currentView = localStorage.getItem('gameshelf_view') || 'grid';
 let currentSort = localStorage.getItem('gameshelf_sort') || 'recent';
+let sortDir = localStorage.getItem('gameshelf_dir') || 'desc'; // 'asc' | 'desc'
 let imgTab = 'url';
-let pendingImg = null;   // { src, type } — type: 'url' | 'base64'
+let pendingImg = null;
 let detailId = null;
 
 // ===== PERSIST =====
 const save = () => localStorage.setItem('gameshelf_v2', JSON.stringify(games));
+
+// ===== SORT LABELS =====
+const sortLabels = {
+  recent: { asc: 'Antiguos â†‘', desc: 'Recientes â†“' },
+  alpha:  { asc: 'Aâ€“Z â†‘',      desc: 'Zâ€“A â†“' }
+};
+
+function updateSortBtnLabels() {
+  document.querySelectorAll('.sort-btn').forEach(btn => {
+    const s = btn.dataset.sort;
+    if (s === currentSort) {
+      // Active button: show current direction
+      btn.textContent = sortLabels[s][sortDir];
+      btn.dataset.dir = sortDir;
+    } else {
+      // Inactive button: show its default direction label
+      const defaultDir = s === 'recent' ? 'desc' : 'asc';
+      btn.textContent = sortLabels[s][defaultDir];
+      btn.dataset.dir = defaultDir;
+    }
+  });
+}
 
 // ===== RENDER =====
 function render() {
@@ -22,8 +45,10 @@ function render() {
   let list = [...games];
   if (currentSort === 'alpha') {
     list.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+    if (sortDir === 'desc') list.reverse();
   } else {
     list.sort((a, b) => b.id - a.id);
+    if (sortDir === 'asc') list.reverse();
   }
 
   if (list.length === 0) {
@@ -39,7 +64,7 @@ function render() {
   col.innerHTML = list.map((g, i) => {
     const coverHtml = g.img
       ? `<img src="${g.img}" alt="${esc(g.name)}" loading="lazy" onerror="this.style.display='none'">`
-      : '🎮';
+      : 'ðŸŽ®';
 
     if (currentView === 'grid') {
       return `<div class="card-grid" data-id="${g.id}" style="animation-delay:${Math.min(i*0.03,0.3)}s">
@@ -47,14 +72,12 @@ function render() {
         <div class="card-label">${esc(g.name)}</div>
       </div>`;
     } else {
-      const date = new Date(g.id).toLocaleDateString('es-MX', { day:'numeric', month:'short', year:'numeric' });
       return `<div class="card-list" data-id="${g.id}" style="animation-delay:${Math.min(i*0.03,0.3)}s">
         <div class="cover-thumb">${coverHtml}</div>
         <div class="list-info">
           <div class="list-name">${esc(g.name)}</div>
-          <div class="list-date">Agregado ${date}</div>
         </div>
-        <span class="list-arrow">›</span>
+        <span class="list-arrow">â€º</span>
       </div>`;
     }
   }).join('');
@@ -93,7 +116,7 @@ function setTab(tab, el) {
   document.getElementById('tab-file').style.display = tab === 'file' ? '' : 'none';
 }
 
-// URL input → instant preview
+// URL input â†’ instant preview
 document.getElementById('inp-url').addEventListener('input', e => {
   const url = e.target.value.trim();
   if (url) {
@@ -153,7 +176,7 @@ function openDetail(id) {
   detailId = id;
 
   const cover = document.getElementById('detail-cover');
-  cover.innerHTML = g.img ? `<img src="${g.img}" alt="${esc(g.name)}">` : '🎮';
+  cover.innerHTML = g.img ? `<img src="${g.img}" alt="${esc(g.name)}">` : 'ðŸŽ®';
 
   document.getElementById('detail-name').textContent = g.name;
   const date = new Date(g.id).toLocaleDateString('es-MX', { day:'numeric', month:'long', year:'numeric' });
@@ -220,10 +243,19 @@ document.querySelectorAll('.view-btn').forEach(btn => {
 // ===== SORT =====
 document.querySelectorAll('.sort-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    currentSort = btn.dataset.sort;
+    if (btn.dataset.sort === currentSort) {
+      // Same sort â€” toggle direction
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      // New sort â€” switch to it with its default direction
+      currentSort = btn.dataset.sort;
+      sortDir = btn.dataset.sort === 'recent' ? 'desc' : 'asc';
+    }
     localStorage.setItem('gameshelf_sort', currentSort);
+    localStorage.setItem('gameshelf_dir', sortDir);
     document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
+    updateSortBtnLabels();
     render();
   });
 });
@@ -335,6 +367,7 @@ window.addEventListener('load', () => {
   document.querySelector(`.view-btn:not([data-view="${currentView}"])`)?.classList.remove('active');
   document.querySelector(`.sort-btn[data-sort="${currentSort}"]`)?.classList.add('active');
   document.querySelector(`.sort-btn:not([data-sort="${currentSort}"])`)?.classList.remove('active');
+  updateSortBtnLabels();
 
   render();
   setTimeout(() => document.getElementById('splash').classList.add('out'), 800);
