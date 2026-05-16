@@ -1,7 +1,7 @@
 /* ===== BASE ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; overflow: hidden; background: #0a0a0a; }
-body { font-family: 'Outfit', sans-serif; color: #f0ede6; overscroll-behavior: none; }
+body { font-family: 'Roboto', sans-serif; color: #f0ede6; overscroll-behavior: none; }
 
 :root {
   --accent: #e8ff47;
@@ -27,7 +27,7 @@ body { font-family: 'Outfit', sans-serif; color: #f0ede6; overscroll-behavior: n
 .splash-inner { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .splash-icon { font-size: 56px; color: var(--accent); animation: pulse 1s ease infinite alternate; }
 @keyframes pulse { from { opacity: 0.6; transform: scale(0.95); } to { opacity: 1; transform: scale(1.05); } }
-.splash-name { font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 3px; color: var(--text); }
+.splash-name { font-family: 'Roboto', sans-serif; font-size: 32px; letter-spacing: 3px; color: var(--text); }
 
 /* ===== LAYOUT ===== */
 #app { display: flex; flex-direction: column; height: 100dvh; }
@@ -42,7 +42,7 @@ body { font-family: 'Outfit', sans-serif; color: #f0ede6; overscroll-behavior: n
 }
 .topbar-left { display: flex; align-items: center; gap: 8px; }
 .app-logo { font-size: 20px; color: var(--accent); }
-.app-name { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 2px; color: var(--text); }
+.app-name { font-family: 'Roboto', sans-serif; font-size: 22px; letter-spacing: 2px; color: var(--text); }
 .topbar-right { display: flex; align-items: center; gap: 12px; }
 .game-count { font-size: 12px; color: var(--muted); font-weight: 400; }
 .icon-btn {
@@ -65,7 +65,7 @@ body { font-family: 'Outfit', sans-serif; color: #f0ede6; overscroll-behavior: n
   padding: 5px 13px; border-radius: 20px;
   border: 1px solid var(--border);
   background: transparent; color: var(--muted);
-  font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 400;
+  font-family: 'Roboto', sans-serif; font-size: 13px; font-weight: 400;
   cursor: pointer; transition: all 0.15s;
 }
 .sort-btn.active { background: var(--surface2); color: var(--text); border-color: #333; }
@@ -156,7 +156,7 @@ body { font-family: 'Outfit', sans-serif; color: #f0ede6; overscroll-behavior: n
 }
 .empty-state.show { display: flex; }
 .empty-glyph { font-size: 52px; color: #2a2a2a; margin-bottom: 4px; }
-.empty-state p { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1px; color: #3a3a3a; }
+.empty-state p { font-family: 'Roboto', sans-serif; font-size: 20px; letter-spacing: 1px; color: #3a3a3a; }
 .empty-state span { font-size: 13px; color: #2e2e2e; }
 .empty-state strong { color: var(--accent); }
 
@@ -183,7 +183,7 @@ body { font-family: 'Outfit', sans-serif; color: #f0ede6; overscroll-behavior: n
 }
 .overlay.open .sheet { transform: translateY(0); }
 .sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: #333; margin: 0 auto 4px; }
-.sheet-title { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1px; color: var(--text); }
+.sheet-title { font-family: 'Roboto', sans-serif; font-size: 20px; letter-spacing: 1px; color: var(--text); }
 
 /* ===== FIELDS ===== */
 .field { display: flex; flex-direction: column; gap: 7px; }
@@ -191,7 +191,7 @@ body { font-family: 'Outfit', sans-serif; color: #f0ede6; overscroll-behavior: n
 input[type=text], input[type=url] {
   background: var(--surface2); border: 1px solid var(--border);
   border-radius: 10px; padding: 12px 14px;
-  color: var(--text); font-family: 'Outfit', sans-serif; font-size: 14px;
+  color: var(--text); font-family: 'Roboto', sans-serif; font-size: 14px;
   outline: none; width: 100%; transition: border-color 0.15s;
 }
 input:focus { border-color: var(--accent); }
@@ -202,7 +202,7 @@ input::placeholder { color: #3a3a3a; }
 .itab {
   padding: 6px 14px; border-radius: 8px;
   background: var(--surface2); border: 1px solid var(--border);
-  color: var(--muted); font-size: 12px; font-family: 'Outfit', sans-serif;
+  color: var(--muted); font-size: 12px; font-family: 'Roboto', sans-serif;
   cursor: pointer; transition: all 0.15s;
 }
 .itab.active { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
@@ -224,7 +224,7 @@ input::placeholder { color: #3a3a3a; }
 .btn-primary {
   width: 100%; padding: 14px; border-radius: 12px; border: none;
   background: var(--accent); color: var(--bg);
-  font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 1px;
+  font-family: 'Roboto', sans-serif; font-size: 18px; letter-spacing: 1px;
   cursor: pointer; transition: opacity 0.12s, transform 0.1s;
 }
 .btn-primary:active { opacity: 0.75; transform: scale(0.98); }
@@ -241,7 +241,7 @@ input::placeholder { color: #3a3a3a; }
 }
 .detail-cover img { width: 100%; height: 100%; object-fit: cover; }
 .detail-info { padding: 0 20px 16px; border-bottom: 1px solid var(--border); }
-.detail-name { font-family: 'Bebas Neue', sans-serif; font-size: 26px; letter-spacing: 1px; line-height: 1.1; }
+.detail-name { font-family: 'Roboto', sans-serif; font-size: 26px; letter-spacing: 1px; line-height: 1.1; }
 .detail-date { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .detail-date-btn {
   display: flex; align-items: center; gap: 6px; margin-top: 6px;
@@ -256,7 +256,7 @@ input::placeholder { color: #3a3a3a; }
 input[type=datetime-local] {
   background: var(--surface2); border: 1px solid var(--border);
   border-radius: 10px; padding: 12px 14px;
-  color: var(--text); font-family: 'Outfit', sans-serif; font-size: 14px;
+  color: var(--text); font-family: 'Roboto', sans-serif; font-size: 14px;
   outline: none; width: 100%; transition: border-color 0.15s;
   color-scheme: dark;
 }
@@ -276,7 +276,7 @@ input[type=datetime-local]:focus { border-color: var(--accent); }
 .date-field input[type=number] {
   background: var(--surface2); border: 1px solid var(--border);
   border-radius: 10px; padding: 11px 8px;
-  color: var(--text); font-family: 'Outfit', sans-serif; font-size: 16px;
+  color: var(--text); font-family: 'Roboto', sans-serif; font-size: 16px;
   font-weight: 500; text-align: center;
   outline: none; width: 100%; transition: border-color 0.15s;
   -moz-appearance: textfield;
@@ -288,21 +288,21 @@ input[type=datetime-local]:focus { border-color: var(--accent); }
 .btn-edit {
   flex: 1; padding: 12px; border-radius: 10px;
   background: var(--surface2); border: 1px solid var(--border);
-  color: var(--text); font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 500;
+  color: var(--text); font-family: 'Roboto', sans-serif; font-size: 13px; font-weight: 500;
   cursor: pointer; transition: background 0.12s;
 }
 .btn-edit:active { background: #2a2a2a; }
 .btn-danger {
   padding: 12px 18px; border-radius: 10px;
   background: rgba(255,60,60,0.08); border: 1px solid rgba(255,60,60,0.2);
-  color: #ff5555; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 500;
+  color: #ff5555; font-family: 'Roboto', sans-serif; font-size: 13px; font-weight: 500;
   cursor: pointer; transition: background 0.12s;
 }
 .btn-danger:active { background: rgba(255,60,60,0.15); }
 .btn-remove-img {
   width: 100%; padding: 12px; border-radius: 10px;
   background: transparent; border: 1px solid #333;
-  color: var(--muted); font-family: 'Outfit', sans-serif; font-size: 13px;
+  color: var(--muted); font-family: 'Roboto', sans-serif; font-size: 13px;
   cursor: pointer; transition: opacity 0.15s;
 }
 .btn-remove-img:active { opacity: 0.6; }
@@ -362,7 +362,7 @@ input[type=datetime-local]:focus { border-color: var(--accent); }
 .btn-backup {
   width: 100%; padding: 12px 16px; border-radius: 10px;
   background: var(--surface2); border: 1px solid var(--border);
-  color: var(--text); font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 500;
+  color: var(--text); font-family: 'Roboto', sans-serif; font-size: 14px; font-weight: 500;
   cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
   transition: opacity 0.15s;
 }

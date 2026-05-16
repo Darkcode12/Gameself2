@@ -1,6 +1,6 @@
 {
-  "name": "GameShelf",
-  "short_name": "GameShelf",
+  "name": "Completados",
+  "short_name": "Completados",
   "description": "Tu colección de videojuegos personal",
   "start_url": "./index.html",
   "display": "standalone",

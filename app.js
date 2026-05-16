@@ -2,9 +2,9 @@
 
 // ===== STATE =====
 let games = [];
-let currentView = localStorage.getItem('gameshelf_view') || 'grid';
-let currentSort = localStorage.getItem('gameshelf_sort') || 'recent';
-let sortDir = localStorage.getItem('gameshelf_dir') || 'desc';
+let currentView = localStorage.getItem('completados_view') || 'grid3';
+let currentSort = localStorage.getItem('completados_sort') || 'recent';
+let sortDir = localStorage.getItem('completados_dir') || 'desc';
 let imgTab = 'url';
 let pendingImg = null;
 let detailId = null;
@@ -56,14 +56,14 @@ function dbDelete(id) {
 async function loadGames() {
   games = await dbGetAll();
   // Migrate from localStorage if needed
-  const old = localStorage.getItem('gameshelf_v2');
+  const old = localStorage.getItem('completados_v2');
   if (old && games.length === 0) {
     try {
       const parsed = JSON.parse(old);
       if (parsed.length > 0) {
         games = parsed;
         for (const g of games) await dbPut(g);
-        localStorage.removeItem('gameshelf_v2');
+        localStorage.removeItem('completados_v2');
       }
     } catch(e) {}
   }
@@ -374,7 +374,7 @@ document.getElementById('btnRemoveImg').addEventListener('click', async () => {
 document.querySelectorAll('.view-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     currentView = btn.dataset.view;
-    localStorage.setItem('gameshelf_view', currentView);
+    localStorage.setItem('completados_view', currentView);
     document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     render();
@@ -390,8 +390,8 @@ document.querySelectorAll('.sort-btn').forEach(btn => {
       currentSort = btn.dataset.sort;
       sortDir = btn.dataset.sort === 'recent' ? 'desc' : 'asc';
     }
-    localStorage.setItem('gameshelf_sort', currentSort);
-    localStorage.setItem('gameshelf_dir', sortDir);
+    localStorage.setItem('completados_sort', currentSort);
+    localStorage.setItem('completados_dir', sortDir);
     document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     updateSortBtnLabels();
@@ -410,7 +410,7 @@ const ACCENT_PRESETS = [
   '#e8ff47','#ff4757','#ff6b35','#ffd32a','#2ed573',
   '#1e90ff','#a55eea','#ff6eb4','#00d2d3','#ff9f43','#ffffff','#c8c8c8'
 ];
-let currentAccent = localStorage.getItem('gameshelf_accent') || '#e8ff47';
+let currentAccent = localStorage.getItem('completados_accent') || '#e8ff47';
 
 function applyAccent(color) {
   document.documentElement.style.setProperty('--accent', color);
@@ -433,7 +433,7 @@ function buildColorGrid() {
 }
 
 function openSettings() {
-  document.getElementById('inp-app-name').value = localStorage.getItem('gameshelf_appname') || '';
+  document.getElementById('inp-app-name').value = localStorage.getItem('completados_appname') || '';
   document.getElementById('inp-custom-color').value = currentAccent;
   buildColorGrid();
   document.getElementById('settingsOverlay').classList.add('open');
@@ -446,9 +446,9 @@ document.getElementById('inp-custom-color').addEventListener('input', e => {
 
 document.getElementById('btnSaveSettings').addEventListener('click', () => {
   const name = document.getElementById('inp-app-name').value.trim();
-  const displayName = name || 'GameShelf';
-  localStorage.setItem('gameshelf_appname', name);
-  localStorage.setItem('gameshelf_accent', currentAccent);
+  const displayName = name || 'Completados';
+  localStorage.setItem('completados_appname', name);
+  localStorage.setItem('completados_accent', currentAccent);
   document.querySelector('.app-name').textContent = displayName;
   document.querySelector('.splash-name').textContent = displayName;
   document.title = displayName;
@@ -472,7 +472,7 @@ document.getElementById('btnExport').addEventListener('click', () => {
   if (games.length === 0) { showHint('No hay juegos para exportar', 'err'); return; }
   const data = {
     version: 2, exportedAt: new Date().toISOString(),
-    appName: localStorage.getItem('gameshelf_appname') || '',
+    appName: localStorage.getItem('completados_appname') || '',
     accent: currentAccent, games
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -502,11 +502,11 @@ document.getElementById('inp-backup-file').addEventListener('change', async e =>
       const newGames = data.games.filter(g => !existingIds.has(g.id));
       for (const g of newGames) { games.push(g); await dbPut(g); }
       render();
-      if (data.accent) { applyAccent(data.accent); localStorage.setItem('gameshelf_accent', data.accent); }
+      if (data.accent) { applyAccent(data.accent); localStorage.setItem('completados_accent', data.accent); }
       if (data.appName) {
-        localStorage.setItem('gameshelf_appname', data.appName);
-        document.querySelector('.app-name').textContent = data.appName || 'GameShelf';
-        document.title = data.appName || 'GameShelf';
+        localStorage.setItem('completados_appname', data.appName);
+        document.querySelector('.app-name').textContent = data.appName || 'Completados';
+        document.title = data.appName || 'Completados';
       }
       showHint(`✓ ${newGames.length} juegos importados (${data.games.length - newGames.length} ya existían)`);
     } catch { showHint('Error: archivo no válido', 'err'); }
@@ -525,7 +525,7 @@ window.addEventListener('load', async () => {
   await loadGames();
 
   applyAccent(currentAccent);
-  const savedName = localStorage.getItem('gameshelf_appname');
+  const savedName = localStorage.getItem('completados_appname');
   if (savedName) {
     document.querySelector('.app-name').textContent = savedName;
     document.querySelector('.splash-name').textContent = savedName;
