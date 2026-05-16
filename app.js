@@ -111,22 +111,22 @@ function render() {
     empty.classList.add('show'); return;
   }
   empty.classList.remove('show');
-  col.className = currentView === 'grid' ? 'view-grid' : 'view-list';
+  col.className = currentView === 'list' ? 'view-list' : currentView === 'grid3' ? 'view-grid3' : 'view-grid';
 
   col.innerHTML = list.map((g, i) => {
     const coverHtml = g.img
       ? `<img src="${g.img}" alt="${esc(g.name)}" loading="lazy" onerror="this.style.display='none'">`
       : '🎮';
-    if (currentView === 'grid') {
-      return `<div class="card-grid" data-id="${g.id}" style="animation-delay:${Math.min(i*0.03,0.3)}s">
-        <div class="cover">${coverHtml}</div>
-        <div class="card-label">${esc(g.name)}</div>
-      </div>`;
-    } else {
+    if (currentView === 'list') {
       return `<div class="card-list" data-id="${g.id}" style="animation-delay:${Math.min(i*0.03,0.3)}s">
         <div class="cover-thumb">${coverHtml}</div>
         <div class="list-info"><div class="list-name">${esc(g.name)}</div></div>
         <span class="list-arrow">›</span>
+      </div>`;
+    } else {
+      return `<div class="card-grid" data-id="${g.id}" style="animation-delay:${Math.min(i*0.03,0.3)}s">
+        <div class="cover">${coverHtml}</div>
+        <div class="card-label">${esc(g.name)}</div>
       </div>`;
     }
   }).join('');
@@ -532,8 +532,9 @@ window.addEventListener('load', async () => {
     document.title = savedName;
   }
 
-  document.querySelector(`.view-btn[data-view="${currentView}"]`)?.classList.add('active');
-  document.querySelector(`.view-btn:not([data-view="${currentView}"])`)?.classList.remove('active');
+  document.querySelectorAll('.view-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.view === currentView);
+  });
   document.querySelector(`.sort-btn[data-sort="${currentSort}"]`)?.classList.add('active');
   document.querySelector(`.sort-btn:not([data-sort="${currentSort}"])`)?.classList.remove('active');
   updateSortBtnLabels();

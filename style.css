@@ -111,7 +111,16 @@ body { font-family: 'Outfit', sans-serif; color: #f0ede6; overscroll-behavior: n
   border-top: 1px solid var(--border);
 }
 
-/* ===== LIST VIEW ===== */
+/* ===== GRID3 VIEW ===== */
+#collection.view-grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+#collection.view-grid3 .card-grid .card-label {
+  font-size: 10px;
+  padding: 5px 6px 7px;
+}
 #collection.view-list {
   display: flex; flex-direction: column; gap: 8px;
 }
