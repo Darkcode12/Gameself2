@@ -1,5 +1,15 @@
 'use strict';
 
+// ===== FIREBASE CONFIG =====
+const firebaseConfig = {
+  apiKey: "AIzaSyDr4cW8390CZzejR4-msKcjJ_DPYhl6DDU",
+  authDomain: "completaods.firebaseapp.com",
+  projectId: "completaods",
+  storageBucket: "completaods.firebasestorage.app",
+  messagingSenderId: "890482535912",
+  appId: "1:890482535912:web:83656cbc3f2edf7aa1885d"
+};
+
 // ===== STATE =====
 let games = [];
 let currentView = localStorage.getItem('completados_view') || 'grid3';
@@ -8,65 +18,96 @@ let sortDir = localStorage.getItem('completados_dir') || 'desc';
 let imgTab = 'url';
 let pendingImg = null;
 let detailId = null;
+let firestoreDb = null;
+let isOnline = navigator.onLine;
 
-// ===== INDEXEDDB =====
+// ===== INDEXEDDB (local backup) =====
 let db;
-
 function openDB() {
-  return new Promise((resolve, reject) => {
+  return new Promise((res, rej) => {
     const req = indexedDB.open('gameshelf', 2);
     req.onupgradeneeded = e => {
       const d = e.target.result;
-      if (!d.objectStoreNames.contains('games')) {
-        d.createObjectStore('games', { keyPath: 'id' });
-      }
+      if (!d.objectStoreNames.contains('games')) d.createObjectStore('games', { keyPath: 'id' });
     };
-    req.onsuccess = e => { db = e.target.result; resolve(db); };
-    req.onerror = () => reject(req.error);
+    req.onsuccess = e => { db = e.target.result; res(db); };
+    req.onerror = () => rej(req.error);
   });
 }
-
 function dbGetAll() {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('games', 'readonly');
+  return new Promise((res, rej) => {
+    const tx = db.transaction('games','readonly');
     const req = tx.objectStore('games').getAll();
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
   });
 }
-
-function dbPut(game) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('games', 'readwrite');
+function dbPutLocal(game) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction('games','readwrite');
     const req = tx.objectStore('games').put(game);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => res();
+    req.onerror = () => rej(req.error);
   });
 }
-
-function dbDelete(id) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('games', 'readwrite');
+function dbDeleteLocal(id) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction('games','readwrite');
     const req = tx.objectStore('games').delete(Number(id));
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => res();
+    req.onerror = () => rej(req.error);
   });
 }
 
-async function loadGames() {
-  games = await dbGetAll();
-  // Migrate from localStorage if needed
-  const old = localStorage.getItem('completados_v2');
-  if (old && games.length === 0) {
-    try {
-      const parsed = JSON.parse(old);
-      if (parsed.length > 0) {
-        games = parsed;
-        for (const g of games) await dbPut(g);
-        localStorage.removeItem('completados_v2');
-      }
-    } catch(e) {}
+// ===== FIRESTORE =====
+async function initFirebase() {
+  try {
+    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const { getFirestore, collection, getDocs, setDoc, deleteDoc, doc, onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const app = initializeApp(firebaseConfig);
+    firestoreDb = getFirestore(app);
+
+    // Real-time listener — syncs changes from any device instantly
+    const colRef = collection(firestoreDb, 'games');
+    onSnapshot(colRef, snapshot => {
+      games = snapshot.docs.map(d => ({ ...d.data(), id: Number(d.id) }));
+      // Also update local IndexedDB
+      games.forEach(g => dbPutLocal(g).catch(() => {}));
+      render();
+      updateSyncStatus(true);
+    }, () => updateSyncStatus(false));
+
+    window._fsSetDoc = (id, data) => setDoc(doc(firestoreDb, 'games', String(id)), data);
+    window._fsDeleteDoc = id => deleteDoc(doc(firestoreDb, 'games', String(id)));
+    updateSyncStatus(true);
+  } catch(e) {
+    console.warn('Firebase init failed, using local only:', e);
+    updateSyncStatus(false);
+    // Fall back to IndexedDB
+    games = await dbGetAll();
+    render();
   }
+}
+
+async function saveGame(game) {
+  await dbPutLocal(game);
+  if (window._fsSetDoc) {
+    try { await window._fsSetDoc(game.id, game); } catch(e) { console.warn('Firestore save failed', e); }
+  }
+}
+
+async function deleteGame(id) {
+  await dbDeleteLocal(id);
+  if (window._fsDeleteDoc) {
+    try { await window._fsDeleteDoc(id); } catch(e) { console.warn('Firestore delete failed', e); }
+  }
+}
+
+function updateSyncStatus(online) {
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  el.textContent = online ? '☁ Sincronizado' : '⚠ Sin conexión';
+  el.style.color = online ? 'var(--accent)' : '#f59e0b';
 }
 
 // ===== SORT LABELS =====
@@ -202,7 +243,7 @@ document.getElementById('btnSave').addEventListener('click', async () => {
   if (!name) { document.getElementById('inp-name').focus(); return; }
   const game = { id: Date.now(), name, img: pendingImg?.src || null };
   games.push(game);
-  await dbPut(game);
+  await saveGame(game);
   render(); closeAdd();
 });
 
@@ -233,7 +274,6 @@ function updateDetailDate(g) {
   });
 }
 
-// Edit date
 document.getElementById('detail-date').addEventListener('click', () => {
   const g = games.find(x => x.id == detailId);
   if (!g) return;
@@ -258,15 +298,16 @@ document.getElementById('btnSaveDate').addEventListener('click', async () => {
     parseInt(document.getElementById('d-min').value)   || 0,
     parseInt(document.getElementById('d-sec').value)   || 0
   ).getTime();
-  await dbPut(g);
+  await saveGame(g);
   render(); updateDetailDate(g);
   document.getElementById('dateOverlay').classList.remove('open');
 });
 
 document.getElementById('btnDelete').addEventListener('click', async () => {
   if (!detailId) return;
-  games = games.filter(g => g.id != detailId);
-  await dbDelete(detailId);
+  const id = detailId;
+  games = games.filter(g => g.id != id);
+  await deleteGame(Number(id));
   render(); closeDetail();
 });
 
@@ -283,7 +324,7 @@ document.getElementById('btnSaveEdit').addEventListener('click', async () => {
   const name = document.getElementById('inp-edit-name').value.trim();
   if (!name) return;
   const g = games.find(x => x.id == detailId);
-  if (g) { g.name = name; await dbPut(g); render(); }
+  if (g) { g.name = name; await saveGame(g); render(); }
   document.getElementById('editOverlay').classList.remove('open');
   document.getElementById('detail-name').textContent = name;
 });
@@ -343,7 +384,7 @@ document.getElementById('btnSaveEditImg').addEventListener('click', async () => 
     const src = document.getElementById('edit-img-preview').src;
     g.img = (src && src !== window.location.href) ? src : null;
   }
-  await dbPut(g);
+  await saveGame(g);
   render();
   document.getElementById('detail-cover').innerHTML = g.img ? `<img src="${g.img}" alt="${esc(g.name)}">` : '🎮';
   document.getElementById('editImgOverlay').classList.remove('open');
@@ -353,7 +394,7 @@ document.getElementById('btnRemoveImg').addEventListener('click', async () => {
   const g = games.find(x => x.id == detailId);
   if (!g) return;
   g.img = null;
-  await dbPut(g);
+  await saveGame(g);
   render();
   document.getElementById('detail-cover').innerHTML = '🎮';
   document.getElementById('editImgOverlay').classList.remove('open');
@@ -479,7 +520,7 @@ document.getElementById('btnExport').addEventListener('click', () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `gameshelf-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `completados-backup-${new Date().toISOString().slice(0,10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
   showHint(`✓ ${games.length} juegos exportados`);
@@ -500,7 +541,7 @@ document.getElementById('inp-backup-file').addEventListener('change', async e =>
       if (!data.games || !Array.isArray(data.games)) throw new Error();
       const existingIds = new Set(games.map(g => g.id));
       const newGames = data.games.filter(g => !existingIds.has(g.id));
-      for (const g of newGames) { games.push(g); await dbPut(g); }
+      for (const g of newGames) { games.push(g); await saveGame(g); }
       render();
       if (data.accent) { applyAccent(data.accent); localStorage.setItem('completados_accent', data.accent); }
       if (data.appName) {
@@ -508,7 +549,7 @@ document.getElementById('inp-backup-file').addEventListener('change', async e =>
         document.querySelector('.app-name').textContent = data.appName || 'Completados';
         document.title = data.appName || 'Completados';
       }
-      showHint(`✓ ${newGames.length} juegos importados (${data.games.length - newGames.length} ya existían)`);
+      showHint(`✓ ${newGames.length} juegos importados`);
     } catch { showHint('Error: archivo no válido', 'err'); }
   };
   reader.readAsText(file);
@@ -522,8 +563,9 @@ if ('serviceWorker' in navigator) {
 // ===== INIT =====
 window.addEventListener('load', async () => {
   await openDB();
-  await loadGames();
 
+  // Load from IndexedDB first (instant, offline-safe)
+  games = await dbGetAll();
   applyAccent(currentAccent);
   const savedName = localStorage.getItem('completados_appname');
   if (savedName) {
@@ -531,14 +573,15 @@ window.addEventListener('load', async () => {
     document.querySelector('.splash-name').textContent = savedName;
     document.title = savedName;
   }
-
   document.querySelectorAll('.view-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.view === currentView);
   });
   document.querySelector(`.sort-btn[data-sort="${currentSort}"]`)?.classList.add('active');
   document.querySelector(`.sort-btn:not([data-sort="${currentSort}"])`)?.classList.remove('active');
   updateSortBtnLabels();
-
   render();
   setTimeout(() => document.getElementById('splash').classList.add('out'), 800);
+
+  // Then connect Firebase (updates will come via onSnapshot)
+  await initFirebase();
 });
