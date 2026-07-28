@@ -19,9 +19,13 @@ let imgTab = 'url';
 let pendingImg = null;
 let detailId = null;
 let firestoreDb = null;
-let isOnline = navigator.onLine;
+let fsCollection = null;
+let fsSetDoc = null;
+let fsDeleteDoc = null;
+let fsDoc = null;
+let fsGetDocs = null;
 
-// ===== INDEXEDDB (local backup) =====
+// ===== INDEXEDDB =====
 let db;
 function openDB() {
   return new Promise((res, rej) => {
@@ -58,57 +62,84 @@ function dbDeleteLocal(id) {
     req.onerror = () => rej(req.error);
   });
 }
+async function dbClearAll() {
+  return new Promise((res, rej) => {
+    const tx = db.transaction('games','readwrite');
+    tx.objectStore('games').clear();
+    tx.oncomplete = res; tx.onerror = rej;
+  });
+}
 
-// ===== FIRESTORE =====
+// ===== FIREBASE INIT (no auto-sync) =====
 async function initFirebase() {
   try {
     const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-    const { getFirestore, collection, getDocs, setDoc, deleteDoc, doc, onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const { getFirestore, collection, getDocs, setDoc, deleteDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     const app = initializeApp(firebaseConfig);
     firestoreDb = getFirestore(app);
-
-    // Real-time listener — syncs changes from any device instantly
-    const colRef = collection(firestoreDb, 'games');
-    onSnapshot(colRef, snapshot => {
-      games = snapshot.docs.map(d => ({ ...d.data(), id: Number(d.id) }));
-      // Also update local IndexedDB
-      games.forEach(g => dbPutLocal(g).catch(() => {}));
-      render();
-      updateSyncStatus(true);
-    }, () => updateSyncStatus(false));
-
-    window._fsSetDoc = (id, data) => setDoc(doc(firestoreDb, 'games', String(id)), data);
-    window._fsDeleteDoc = id => deleteDoc(doc(firestoreDb, 'games', String(id)));
-    updateSyncStatus(true);
+    fsCollection = () => collection(firestoreDb, 'games');
+    fsSetDoc = (id, data) => setDoc(doc(firestoreDb, 'games', String(id)), data);
+    fsDeleteDoc = id => deleteDoc(doc(firestoreDb, 'games', String(id)));
+    fsGetDocs = getDocs;
+    setCloudStatus('ok');
   } catch(e) {
-    console.warn('Firebase init failed, using local only:', e);
-    updateSyncStatus(false);
-    // Fall back to IndexedDB
-    games = await dbGetAll();
+    console.warn('Firebase init failed:', e);
+    setCloudStatus('error');
+  }
+}
+
+function setCloudStatus(status) {
+  const btn = document.getElementById('btnCloud');
+  if (!btn) return;
+  if (status === 'ok')      btn.title = 'Nube conectada';
+  if (status === 'error')   btn.title = 'Sin conexión a la nube';
+  if (status === 'loading') btn.title = 'Conectando...';
+}
+
+// ===== MANUAL CLOUD SYNC =====
+async function uploadToCloud() {
+  if (!fsSetDoc) { showCloudHint('Sin conexión a la nube', 'err'); return; }
+  const btn = document.getElementById('btnCloudUpload');
+  btn.disabled = true; btn.textContent = 'Subiendo...';
+  try {
+    for (const g of games) await fsSetDoc(g.id, g);
+    showCloudHint(`✓ ${games.length} juegos subidos a la nube`);
+  } catch(e) {
+    showCloudHint('Error al subir', 'err');
+  } finally { btn.disabled = false; btn.textContent = '↑ Subir a la nube'; }
+}
+
+async function downloadFromCloud() {
+  if (!fsGetDocs) { showCloudHint('Sin conexión a la nube', 'err'); return; }
+  const btn = document.getElementById('btnCloudDownload');
+  btn.disabled = true; btn.textContent = 'Bajando...';
+  try {
+    const snapshot = await fsGetDocs(fsCollection());
+    const cloudGames = snapshot.docs.map(d => ({ ...d.data(), id: Number(d.id) }));
+    if (cloudGames.length === 0) { showCloudHint('La nube está vacía', 'err'); btn.disabled = false; btn.textContent = '↓ Bajar de la nube'; return; }
+    await dbClearAll();
+    for (const g of cloudGames) await dbPutLocal(g);
+    games = cloudGames;
     render();
-  }
+    showCloudHint(`✓ ${games.length} juegos bajados de la nube`);
+  } catch(e) {
+    showCloudHint('Error al bajar', 'err');
+  } finally { btn.disabled = false; btn.textContent = '↓ Bajar de la nube'; }
 }
 
-async function saveGame(game) {
-  await dbPutLocal(game);
-  if (window._fsSetDoc) {
-    try { await window._fsSetDoc(game.id, game); } catch(e) { console.warn('Firestore save failed', e); }
-  }
-}
-
-async function deleteGame(id) {
-  await dbDeleteLocal(id);
-  if (window._fsDeleteDoc) {
-    try { await window._fsDeleteDoc(id); } catch(e) { console.warn('Firestore delete failed', e); }
-  }
-}
-
-function updateSyncStatus(online) {
-  const el = document.getElementById('syncStatus');
+function showCloudHint(msg, type = 'ok') {
+  const el = document.getElementById('cloudHint');
   if (!el) return;
-  el.textContent = online ? '☁ Sincronizado' : '⚠ Sin conexión';
-  el.style.color = online ? 'var(--accent)' : '#f59e0b';
+  el.textContent = msg;
+  el.className = `backup-hint ${type}`;
+  setTimeout(() => { el.textContent = ''; el.className = 'backup-hint'; }, 3500);
 }
+
+
+
+// ===== LOCAL SAVE/DELETE =====
+async function saveGame(game) { await dbPutLocal(game); }
+async function deleteGame(id) { await dbDeleteLocal(id); }
 
 // ===== SORT LABELS =====
 const sortLabels = {
@@ -497,6 +528,17 @@ document.getElementById('btnSaveSettings').addEventListener('click', () => {
 });
 
 document.getElementById('btnSettings').addEventListener('click', openSettings);
+document.getElementById('btnCloud').addEventListener('click', () => {
+  document.getElementById('cloudOverlay').classList.add('open');
+});
+document.getElementById('btnCloseCloud').addEventListener('click', () => {
+  document.getElementById('cloudOverlay').classList.remove('open');
+});
+document.getElementById('cloudOverlay').addEventListener('click', e => {
+  if (e.target.id === 'cloudOverlay') document.getElementById('cloudOverlay').classList.remove('open');
+});
+document.getElementById('btnCloudUpload').addEventListener('click', uploadToCloud);
+document.getElementById('btnCloudDownload').addEventListener('click', downloadFromCloud);
 document.getElementById('settingsOverlay').addEventListener('click', e => {
   if (e.target.id === 'settingsOverlay') document.getElementById('settingsOverlay').classList.remove('open');
 });
@@ -685,6 +727,6 @@ window.addEventListener('load', async () => {
   render();
   setTimeout(() => document.getElementById('splash').classList.add('out'), 800);
 
-  // Then connect Firebase (updates will come via onSnapshot)
-  await initFirebase();
+  // Init Firebase in background (no auto-sync)
+  initFirebase();
 });

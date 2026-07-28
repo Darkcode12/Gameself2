@@ -372,6 +372,15 @@ input[type=datetime-local]:focus { border-color: var(--accent); }
 .btn-backup:active { opacity: 0.6; }
 .btn-backup-import { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
 .btn-backup-compare { border-color: #3a8fff; color: #3a8fff; }
+.btn-cloud-action {
+  width: 100%; padding: 13px; border-radius: 12px; margin-bottom: 10px;
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); font-family: 'Roboto', sans-serif; font-size: 14px; font-weight: 500;
+  cursor: pointer; transition: opacity .12s; display: flex; align-items: center; justify-content: center;
+}
+.btn-cloud-action:active { opacity: .6; }
+.btn-cloud-down { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.btn-cloud-action:disabled { opacity: .4; cursor: not-allowed; }
 .compare-modal { max-height: 80dvh; border-radius: 20px 20px 0 0; }
 .compare-section { margin-bottom: 16px; }
 .compare-section-title {
