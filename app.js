@@ -555,7 +555,110 @@ document.getElementById('inp-backup-file').addEventListener('change', async e =>
   reader.readAsText(file);
 });
 
-// ===== SERVICE WORKER =====
+// ===== COMPARE BACKUP =====
+document.getElementById('btnCompare').addEventListener('click', () => {
+  document.getElementById('inp-compare-file').value = '';
+  document.getElementById('inp-compare-file').click();
+});
+
+document.getElementById('inp-compare-file').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.games || !Array.isArray(data.games)) throw new Error();
+      showCompareResults(data.games);
+    } catch { showHint('Error: archivo no válido', 'err'); }
+  };
+  reader.readAsText(file);
+});
+
+function showCompareResults(backupGames) {
+  const currentNames = new Set(games.map(g => g.name.trim().toLowerCase()));
+  const backupNames  = new Set(backupGames.map(g => g.name.trim().toLowerCase()));
+
+  // In backup but NOT in current collection
+  const missing = backupGames.filter(g => !currentNames.has(g.name.trim().toLowerCase()));
+  // In current but NOT in backup
+  const extra   = games.filter(g => !backupNames.has(g.name.trim().toLowerCase()));
+  // In both
+  const matched = games.length - extra.length;
+
+  let html = `<div class="compare-summary">
+    Backup: <strong>${backupGames.length}</strong> juegos &nbsp;·&nbsp;
+    Colección actual: <strong>${games.length}</strong> juegos
+  </div>`;
+
+  if (missing.length === 0 && extra.length === 0) {
+    html += `<div class="compare-item" style="justify-content:center;color:#22c55e;font-weight:600">
+      ✅ Tu colección está completa, no falta nada
+    </div>`;
+  }
+
+  if (missing.length > 0) {
+    html += `<div class="compare-section">
+      <div class="compare-section-title compare-title-missing">
+        ❌ Faltan en tu colección (${missing.length})
+      </div>
+      ${missing.map(g => `<div class="compare-item">
+        <span class="compare-item-icon">🎮</span>${esc(g.name)}
+      </div>`).join('')}
+      <button class="btn-add-missing" id="btnAddMissing">
+        ➕ Agregar los ${missing.length} juegos faltantes
+      </button>
+    </div>`;
+  }
+
+  if (extra.length > 0) {
+    html += `<div class="compare-section">
+      <div class="compare-section-title compare-title-extra">
+        🟡 Tienes estos pero no están en el backup (${extra.length})
+      </div>
+      ${extra.map(g => `<div class="compare-item">
+        <span class="compare-item-icon">🎮</span>${esc(g.name)}
+      </div>`).join('')}
+    </div>`;
+  }
+
+  html += `<div class="compare-section">
+    <div class="compare-section-title compare-title-ok">
+      ✅ Coinciden (${matched})
+    </div>
+  </div>`;
+
+  document.getElementById('compareBody').innerHTML = html;
+  document.getElementById('compareOverlay').classList.add('open');
+
+  // Add missing button
+  if (missing.length > 0) {
+    document.getElementById('btnAddMissing').addEventListener('click', async () => {
+      const btn = document.getElementById('btnAddMissing');
+      btn.textContent = 'Agregando...';
+      btn.disabled = true;
+      for (const g of missing) {
+        games.push(g);
+        await saveGame(g);
+      }
+      render();
+      document.getElementById('compareBody').innerHTML = `
+        <div class="compare-item" style="justify-content:center;color:#22c55e;font-weight:600;margin-top:12px">
+          ✅ ${missing.length} juegos agregados correctamente
+        </div>`;
+      showHint(`✓ ${missing.length} juegos agregados`, 'ok');
+    });
+  }
+}
+
+document.getElementById('btnCloseCompare').addEventListener('click', () => {
+  document.getElementById('compareOverlay').classList.remove('open');
+});
+document.getElementById('compareOverlay').addEventListener('click', e => {
+  if (e.target.id === 'compareOverlay') document.getElementById('compareOverlay').classList.remove('open');
+});
+
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
