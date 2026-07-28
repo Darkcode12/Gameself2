@@ -98,21 +98,28 @@ function setCloudStatus(status) {
 
 // ===== MANUAL CLOUD SYNC =====
 async function uploadToCloud() {
-  if (!fsSetDoc) { showCloudHint('Sin conexión a la nube', 'err'); return; }
   const btn = document.getElementById('btnCloudUpload');
-  btn.disabled = true; btn.textContent = 'Subiendo...';
+  btn.disabled = true; btn.textContent = 'Conectando...';
+  // Wait up to 5s for Firebase
+  let waited = 0;
+  while (!fsSetDoc && waited < 50) { await new Promise(r => setTimeout(r, 100)); waited++; }
+  if (!fsSetDoc) { showCloudHint('Sin conexión a la nube', 'err'); btn.disabled = false; btn.textContent = '↑ Subir a la nube'; return; }
+  btn.textContent = 'Subiendo...';
   try {
     for (const g of games) await fsSetDoc(g.id, g);
     showCloudHint(`✓ ${games.length} juegos subidos a la nube`);
   } catch(e) {
-    showCloudHint('Error al subir', 'err');
+    showCloudHint('Error al subir: ' + e.message, 'err');
   } finally { btn.disabled = false; btn.textContent = '↑ Subir a la nube'; }
 }
 
 async function downloadFromCloud() {
-  if (!fsGetDocs) { showCloudHint('Sin conexión a la nube', 'err'); return; }
   const btn = document.getElementById('btnCloudDownload');
-  btn.disabled = true; btn.textContent = 'Bajando...';
+  btn.disabled = true; btn.textContent = 'Conectando...';
+  let waited = 0;
+  while (!fsGetDocs && waited < 50) { await new Promise(r => setTimeout(r, 100)); waited++; }
+  if (!fsGetDocs) { showCloudHint('Sin conexión a la nube', 'err'); btn.disabled = false; btn.textContent = '↓ Bajar de la nube'; return; }
+  btn.textContent = 'Bajando...';
   try {
     const snapshot = await fsGetDocs(fsCollection());
     const cloudGames = snapshot.docs.map(d => ({ ...d.data(), id: Number(d.id) }));
@@ -123,7 +130,7 @@ async function downloadFromCloud() {
     render();
     showCloudHint(`✓ ${games.length} juegos bajados de la nube`);
   } catch(e) {
-    showCloudHint('Error al bajar', 'err');
+    showCloudHint('Error al bajar: ' + e.message, 'err');
   } finally { btn.disabled = false; btn.textContent = '↓ Bajar de la nube'; }
 }
 

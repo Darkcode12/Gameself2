@@ -186,6 +186,10 @@ body { font-family: 'Roboto', sans-serif; color: #f0ede6; overscroll-behavior: n
 }
 .overlay.open .sheet { transform: translateY(0); }
 .sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: #333; margin: 0 auto 4px; }
+.sheet-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.sheet-close { width: 28px; height: 28px; border-radius: 50%; background: var(--surface2); border: none; color: #888; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.sheet-body { display: flex; flex-direction: column; gap: 10px; }
+.compare-sheet { max-height: 80dvh; }
 .sheet-title { font-family: 'Roboto', sans-serif; font-size: 20px; letter-spacing: 1px; color: var(--text); }
 
 /* ===== FIELDS ===== */
