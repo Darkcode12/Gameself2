@@ -1,4 +1,4 @@
-const CACHE = 'completados-v3';
+const CACHE = 'completados-v4';
 const ASSETS = ['./', './index.html', './style.css', './app.js', './manifest.json'];
 
 self.addEventListener('install', e => {
