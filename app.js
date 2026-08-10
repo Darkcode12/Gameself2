@@ -1,15 +1,5 @@
 'use strict';
 
-// ===== FIREBASE CONFIG =====
-const firebaseConfig = {
-  apiKey: "AIzaSyDr4cW8390CZzejR4-msKcjJ_DPYhl6DDU",
-  authDomain: "completaods.firebaseapp.com",
-  projectId: "completaods",
-  storageBucket: "completaods.firebasestorage.app",
-  messagingSenderId: "890482535912",
-  appId: "1:890482535912:web:83656cbc3f2edf7aa1885d"
-};
-
 // ===== STATE =====
 let games = [];
 let currentView = localStorage.getItem('completados_view') || 'grid3';
@@ -18,135 +8,66 @@ let sortDir = localStorage.getItem('completados_dir') || 'desc';
 let imgTab = 'url';
 let pendingImg = null;
 let detailId = null;
-let firestoreDb = null;
-let fsCollection = null;
-let fsSetDoc = null;
-let fsDeleteDoc = null;
-let fsDoc = null;
-let fsGetDocs = null;
 
 // ===== INDEXEDDB =====
 let db;
+
 function openDB() {
-  return new Promise((res, rej) => {
+  return new Promise((resolve, reject) => {
     const req = indexedDB.open('gameshelf', 2);
     req.onupgradeneeded = e => {
       const d = e.target.result;
-      if (!d.objectStoreNames.contains('games')) d.createObjectStore('games', { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('games')) {
+        d.createObjectStore('games', { keyPath: 'id' });
+      }
     };
-    req.onsuccess = e => { db = e.target.result; res(db); };
-    req.onerror = () => rej(req.error);
-  });
-}
-function dbGetAll() {
-  return new Promise((res, rej) => {
-    const tx = db.transaction('games','readonly');
-    const req = tx.objectStore('games').getAll();
-    req.onsuccess = () => res(req.result);
-    req.onerror = () => rej(req.error);
-  });
-}
-function dbPutLocal(game) {
-  return new Promise((res, rej) => {
-    const tx = db.transaction('games','readwrite');
-    const req = tx.objectStore('games').put(game);
-    req.onsuccess = () => res();
-    req.onerror = () => rej(req.error);
-  });
-}
-function dbDeleteLocal(id) {
-  return new Promise((res, rej) => {
-    const tx = db.transaction('games','readwrite');
-    const req = tx.objectStore('games').delete(Number(id));
-    req.onsuccess = () => res();
-    req.onerror = () => rej(req.error);
-  });
-}
-async function dbClearAll() {
-  return new Promise((res, rej) => {
-    const tx = db.transaction('games','readwrite');
-    tx.objectStore('games').clear();
-    tx.oncomplete = res; tx.onerror = rej;
+    req.onsuccess = e => { db = e.target.result; resolve(db); };
+    req.onerror = () => reject(req.error);
   });
 }
 
-// ===== FIREBASE INIT (no auto-sync) =====
-async function initFirebase() {
-  try {
-    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-    const { getFirestore, collection, getDocs, setDoc, deleteDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const app = initializeApp(firebaseConfig);
-    firestoreDb = getFirestore(app);
-    fsCollection = () => collection(firestoreDb, 'games');
-    fsSetDoc = (id, data) => setDoc(doc(firestoreDb, 'games', String(id)), data);
-    fsDeleteDoc = id => deleteDoc(doc(firestoreDb, 'games', String(id)));
-    fsGetDocs = getDocs;
-    setCloudStatus('ok');
-  } catch(e) {
-    console.warn('Firebase init failed:', e);
-    setCloudStatus('error');
+function dbGetAll() {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('games', 'readonly');
+    const req = tx.objectStore('games').getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbPut(game) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('games', 'readwrite');
+    const req = tx.objectStore('games').put(game);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbDelete(id) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('games', 'readwrite');
+    const req = tx.objectStore('games').delete(Number(id));
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function loadGames() {
+  games = await dbGetAll();
+  // Migrate from localStorage if needed
+  const old = localStorage.getItem('completados_v2');
+  if (old && games.length === 0) {
+    try {
+      const parsed = JSON.parse(old);
+      if (parsed.length > 0) {
+        games = parsed;
+        for (const g of games) await dbPut(g);
+        localStorage.removeItem('completados_v2');
+      }
+    } catch(e) {}
   }
 }
-
-function setCloudStatus(status) {
-  const btn = document.getElementById('btnCloud');
-  if (!btn) return;
-  if (status === 'ok')      btn.title = 'Nube conectada';
-  if (status === 'error')   btn.title = 'Sin conexión a la nube';
-  if (status === 'loading') btn.title = 'Conectando...';
-}
-
-// ===== MANUAL CLOUD SYNC =====
-async function uploadToCloud() {
-  const btn = document.getElementById('btnCloudUpload');
-  btn.disabled = true; btn.textContent = 'Conectando...';
-  // Wait up to 5s for Firebase
-  let waited = 0;
-  while (!fsSetDoc && waited < 50) { await new Promise(r => setTimeout(r, 100)); waited++; }
-  if (!fsSetDoc) { showCloudHint('Sin conexión a la nube', 'err'); btn.disabled = false; btn.textContent = '↑ Subir a la nube'; return; }
-  btn.textContent = 'Subiendo...';
-  try {
-    for (const g of games) await fsSetDoc(g.id, g);
-    showCloudHint(`✓ ${games.length} juegos subidos a la nube`);
-  } catch(e) {
-    showCloudHint('Error al subir: ' + e.message, 'err');
-  } finally { btn.disabled = false; btn.textContent = '↑ Subir a la nube'; }
-}
-
-async function downloadFromCloud() {
-  const btn = document.getElementById('btnCloudDownload');
-  btn.disabled = true; btn.textContent = 'Conectando...';
-  let waited = 0;
-  while (!fsGetDocs && waited < 50) { await new Promise(r => setTimeout(r, 100)); waited++; }
-  if (!fsGetDocs) { showCloudHint('Sin conexión a la nube', 'err'); btn.disabled = false; btn.textContent = '↓ Bajar de la nube'; return; }
-  btn.textContent = 'Bajando...';
-  try {
-    const snapshot = await fsGetDocs(fsCollection());
-    const cloudGames = snapshot.docs.map(d => ({ ...d.data(), id: Number(d.id) }));
-    if (cloudGames.length === 0) { showCloudHint('La nube está vacía', 'err'); btn.disabled = false; btn.textContent = '↓ Bajar de la nube'; return; }
-    await dbClearAll();
-    for (const g of cloudGames) await dbPutLocal(g);
-    games = cloudGames;
-    render();
-    showCloudHint(`✓ ${games.length} juegos bajados de la nube`);
-  } catch(e) {
-    showCloudHint('Error al bajar: ' + e.message, 'err');
-  } finally { btn.disabled = false; btn.textContent = '↓ Bajar de la nube'; }
-}
-
-function showCloudHint(msg, type = 'ok') {
-  const el = document.getElementById('cloudHint');
-  if (!el) return;
-  el.textContent = msg;
-  el.className = `backup-hint ${type}`;
-  setTimeout(() => { el.textContent = ''; el.className = 'backup-hint'; }, 3500);
-}
-
-
-
-// ===== LOCAL SAVE/DELETE =====
-async function saveGame(game) { await dbPutLocal(game); }
-async function deleteGame(id) { await dbDeleteLocal(id); }
 
 // ===== SORT LABELS =====
 const sortLabels = {
@@ -281,7 +202,7 @@ document.getElementById('btnSave').addEventListener('click', async () => {
   if (!name) { document.getElementById('inp-name').focus(); return; }
   const game = { id: Date.now(), name, img: pendingImg?.src || null };
   games.push(game);
-  await saveGame(game);
+  await dbPut(game);
   render(); closeAdd();
 });
 
@@ -312,6 +233,7 @@ function updateDetailDate(g) {
   });
 }
 
+// Edit date
 document.getElementById('detail-date').addEventListener('click', () => {
   const g = games.find(x => x.id == detailId);
   if (!g) return;
@@ -336,16 +258,15 @@ document.getElementById('btnSaveDate').addEventListener('click', async () => {
     parseInt(document.getElementById('d-min').value)   || 0,
     parseInt(document.getElementById('d-sec').value)   || 0
   ).getTime();
-  await saveGame(g);
+  await dbPut(g);
   render(); updateDetailDate(g);
   document.getElementById('dateOverlay').classList.remove('open');
 });
 
 document.getElementById('btnDelete').addEventListener('click', async () => {
   if (!detailId) return;
-  const id = detailId;
-  games = games.filter(g => g.id != id);
-  await deleteGame(Number(id));
+  games = games.filter(g => g.id != detailId);
+  await dbDelete(detailId);
   render(); closeDetail();
 });
 
@@ -362,7 +283,7 @@ document.getElementById('btnSaveEdit').addEventListener('click', async () => {
   const name = document.getElementById('inp-edit-name').value.trim();
   if (!name) return;
   const g = games.find(x => x.id == detailId);
-  if (g) { g.name = name; await saveGame(g); render(); }
+  if (g) { g.name = name; await dbPut(g); render(); }
   document.getElementById('editOverlay').classList.remove('open');
   document.getElementById('detail-name').textContent = name;
 });
@@ -422,7 +343,7 @@ document.getElementById('btnSaveEditImg').addEventListener('click', async () => 
     const src = document.getElementById('edit-img-preview').src;
     g.img = (src && src !== window.location.href) ? src : null;
   }
-  await saveGame(g);
+  await dbPut(g);
   render();
   document.getElementById('detail-cover').innerHTML = g.img ? `<img src="${g.img}" alt="${esc(g.name)}">` : '🎮';
   document.getElementById('editImgOverlay').classList.remove('open');
@@ -432,7 +353,7 @@ document.getElementById('btnRemoveImg').addEventListener('click', async () => {
   const g = games.find(x => x.id == detailId);
   if (!g) return;
   g.img = null;
-  await saveGame(g);
+  await dbPut(g);
   render();
   document.getElementById('detail-cover').innerHTML = '🎮';
   document.getElementById('editImgOverlay').classList.remove('open');
@@ -535,17 +456,6 @@ document.getElementById('btnSaveSettings').addEventListener('click', () => {
 });
 
 document.getElementById('btnSettings').addEventListener('click', openSettings);
-document.getElementById('btnCloud').addEventListener('click', () => {
-  document.getElementById('cloudOverlay').classList.add('open');
-});
-document.getElementById('btnCloseCloud').addEventListener('click', () => {
-  document.getElementById('cloudOverlay').classList.remove('open');
-});
-document.getElementById('cloudOverlay').addEventListener('click', e => {
-  if (e.target.id === 'cloudOverlay') document.getElementById('cloudOverlay').classList.remove('open');
-});
-document.getElementById('btnCloudUpload').addEventListener('click', uploadToCloud);
-document.getElementById('btnCloudDownload').addEventListener('click', downloadFromCloud);
 document.getElementById('settingsOverlay').addEventListener('click', e => {
   if (e.target.id === 'settingsOverlay') document.getElementById('settingsOverlay').classList.remove('open');
 });
@@ -569,7 +479,7 @@ document.getElementById('btnExport').addEventListener('click', () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `completados-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `gameshelf-backup-${new Date().toISOString().slice(0,10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
   showHint(`✓ ${games.length} juegos exportados`);
@@ -590,7 +500,7 @@ document.getElementById('inp-backup-file').addEventListener('change', async e =>
       if (!data.games || !Array.isArray(data.games)) throw new Error();
       const existingIds = new Set(games.map(g => g.id));
       const newGames = data.games.filter(g => !existingIds.has(g.id));
-      for (const g of newGames) { games.push(g); await saveGame(g); }
+      for (const g of newGames) { games.push(g); await dbPut(g); }
       render();
       if (data.accent) { applyAccent(data.accent); localStorage.setItem('completados_accent', data.accent); }
       if (data.appName) {
@@ -598,116 +508,13 @@ document.getElementById('inp-backup-file').addEventListener('change', async e =>
         document.querySelector('.app-name').textContent = data.appName || 'Completados';
         document.title = data.appName || 'Completados';
       }
-      showHint(`✓ ${newGames.length} juegos importados`);
+      showHint(`✓ ${newGames.length} juegos importados (${data.games.length - newGames.length} ya existían)`);
     } catch { showHint('Error: archivo no válido', 'err'); }
   };
   reader.readAsText(file);
 });
 
-// ===== COMPARE BACKUP =====
-document.getElementById('btnCompare').addEventListener('click', () => {
-  document.getElementById('inp-compare-file').value = '';
-  document.getElementById('inp-compare-file').click();
-});
-
-document.getElementById('inp-compare-file').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      const data = JSON.parse(ev.target.result);
-      if (!data.games || !Array.isArray(data.games)) throw new Error();
-      showCompareResults(data.games);
-    } catch { showHint('Error: archivo no válido', 'err'); }
-  };
-  reader.readAsText(file);
-});
-
-function showCompareResults(backupGames) {
-  const currentNames = new Set(games.map(g => g.name.trim().toLowerCase()));
-  const backupNames  = new Set(backupGames.map(g => g.name.trim().toLowerCase()));
-
-  // In backup but NOT in current collection
-  const missing = backupGames.filter(g => !currentNames.has(g.name.trim().toLowerCase()));
-  // In current but NOT in backup
-  const extra   = games.filter(g => !backupNames.has(g.name.trim().toLowerCase()));
-  // In both
-  const matched = games.length - extra.length;
-
-  let html = `<div class="compare-summary">
-    Backup: <strong>${backupGames.length}</strong> juegos &nbsp;·&nbsp;
-    Colección actual: <strong>${games.length}</strong> juegos
-  </div>`;
-
-  if (missing.length === 0 && extra.length === 0) {
-    html += `<div class="compare-item" style="justify-content:center;color:#22c55e;font-weight:600">
-      ✅ Tu colección está completa, no falta nada
-    </div>`;
-  }
-
-  if (missing.length > 0) {
-    html += `<div class="compare-section">
-      <div class="compare-section-title compare-title-missing">
-        ❌ Faltan en tu colección (${missing.length})
-      </div>
-      ${missing.map(g => `<div class="compare-item">
-        <span class="compare-item-icon">🎮</span>${esc(g.name)}
-      </div>`).join('')}
-      <button class="btn-add-missing" id="btnAddMissing">
-        ➕ Agregar los ${missing.length} juegos faltantes
-      </button>
-    </div>`;
-  }
-
-  if (extra.length > 0) {
-    html += `<div class="compare-section">
-      <div class="compare-section-title compare-title-extra">
-        🟡 Tienes estos pero no están en el backup (${extra.length})
-      </div>
-      ${extra.map(g => `<div class="compare-item">
-        <span class="compare-item-icon">🎮</span>${esc(g.name)}
-      </div>`).join('')}
-    </div>`;
-  }
-
-  html += `<div class="compare-section">
-    <div class="compare-section-title compare-title-ok">
-      ✅ Coinciden (${matched})
-    </div>
-  </div>`;
-
-  document.getElementById('compareBody').innerHTML = html;
-  document.getElementById('compareOverlay').classList.add('open');
-
-  // Add missing button
-  if (missing.length > 0) {
-    document.getElementById('btnAddMissing').addEventListener('click', async () => {
-      const btn = document.getElementById('btnAddMissing');
-      btn.textContent = 'Agregando...';
-      btn.disabled = true;
-      for (const g of missing) {
-        games.push(g);
-        await saveGame(g);
-      }
-      render();
-      document.getElementById('compareBody').innerHTML = `
-        <div class="compare-item" style="justify-content:center;color:#22c55e;font-weight:600;margin-top:12px">
-          ✅ ${missing.length} juegos agregados correctamente
-        </div>`;
-      showHint(`✓ ${missing.length} juegos agregados`, 'ok');
-    });
-  }
-}
-
-document.getElementById('btnCloseCompare').addEventListener('click', () => {
-  document.getElementById('compareOverlay').classList.remove('open');
-});
-document.getElementById('compareOverlay').addEventListener('click', e => {
-  if (e.target.id === 'compareOverlay') document.getElementById('compareOverlay').classList.remove('open');
-});
-
-
+// ===== SERVICE WORKER =====
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
@@ -715,9 +522,8 @@ if ('serviceWorker' in navigator) {
 // ===== INIT =====
 window.addEventListener('load', async () => {
   await openDB();
+  await loadGames();
 
-  // Load from IndexedDB first (instant, offline-safe)
-  games = await dbGetAll();
   applyAccent(currentAccent);
   const savedName = localStorage.getItem('completados_appname');
   if (savedName) {
@@ -725,15 +531,14 @@ window.addEventListener('load', async () => {
     document.querySelector('.splash-name').textContent = savedName;
     document.title = savedName;
   }
+
   document.querySelectorAll('.view-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.view === currentView);
   });
   document.querySelector(`.sort-btn[data-sort="${currentSort}"]`)?.classList.add('active');
   document.querySelector(`.sort-btn:not([data-sort="${currentSort}"])`)?.classList.remove('active');
   updateSortBtnLabels();
+
   render();
   setTimeout(() => document.getElementById('splash').classList.add('out'), 800);
-
-  // Init Firebase in background (no auto-sync)
-  initFirebase();
 });
