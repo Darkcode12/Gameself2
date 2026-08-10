@@ -8,6 +8,7 @@ let sortDir = localStorage.getItem('completados_dir') || 'desc';
 let imgTab = 'url';
 let pendingImg = null;
 let detailId = null;
+let searchQuery = '';
 
 // ===== INDEXEDDB =====
 let db;
@@ -105,6 +106,8 @@ function render() {
     list.sort((a, b) => (b.customDate || b.id) - (a.customDate || a.id));
     if (sortDir === 'asc') list.reverse();
   }
+
+  if (searchQuery) list = list.filter(g => g.name.toLowerCase().includes(searchQuery));
 
   if (list.length === 0) {
     col.innerHTML = ''; col.className = '';
@@ -512,6 +515,22 @@ document.getElementById('inp-backup-file').addEventListener('change', async e =>
     } catch { showHint('Error: archivo no válido', 'err'); }
   };
   reader.readAsText(file);
+});
+
+// ===== SEARCH =====
+document.getElementById('btnSearch').addEventListener('click', () => {
+  document.getElementById('searchBar').style.display = 'flex';
+  document.getElementById('searchInput').focus();
+});
+document.getElementById('btnSearchClose').addEventListener('click', () => {
+  searchQuery = '';
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchBar').style.display = 'none';
+  render();
+});
+document.getElementById('searchInput').addEventListener('input', e => {
+  searchQuery = e.target.value.trim().toLowerCase();
+  render();
 });
 
 // ===== SERVICE WORKER =====
