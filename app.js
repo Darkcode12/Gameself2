@@ -1,5 +1,15 @@
 'use strict';
 
+// ===== FIREBASE CONFIG =====
+const firebaseConfig = {
+  apiKey: "AIzaSyDr4cW8390CZzejR4-msKcjJ_DPYhl6DDU",
+  authDomain: "completaods.firebaseapp.com",
+  projectId: "completaods",
+  storageBucket: "completaods.firebasestorage.app",
+  messagingSenderId: "890482535912",
+  appId: "1:890482535912:web:83656cbc3f2edf7aa1885d"
+};
+
 // ===== STATE =====
 let games = [];
 let currentView = localStorage.getItem('completados_view') || 'grid3';
@@ -8,9 +18,13 @@ let sortDir = localStorage.getItem('completados_dir') || 'desc';
 let imgTab = 'url';
 let pendingImg = null;
 let detailId = null;
-let searchQuery = '';
+let firestoreDb = null;
+let fsCollection = null;
+let fsSetDoc = null;
+let fsDeleteDoc = null;
+let fsDoc = null;
+let fsGetDocs = null;
 
-// ===== LOCAL SAVE/DELETE =====
 // ===== INDEXEDDB =====
 let db;
 function openDB() {
@@ -48,7 +62,89 @@ function dbDeleteLocal(id) {
     req.onerror = () => rej(req.error);
   });
 }
+async function dbClearAll() {
+  return new Promise((res, rej) => {
+    const tx = db.transaction('games','readwrite');
+    tx.objectStore('games').clear();
+    tx.oncomplete = res; tx.onerror = rej;
+  });
+}
 
+// ===== FIREBASE INIT (no auto-sync) =====
+async function initFirebase() {
+  try {
+    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const { getFirestore, collection, getDocs, setDoc, deleteDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const app = initializeApp(firebaseConfig);
+    firestoreDb = getFirestore(app);
+    fsCollection = () => collection(firestoreDb, 'games');
+    fsSetDoc = (id, data) => setDoc(doc(firestoreDb, 'games', String(id)), data);
+    fsDeleteDoc = id => deleteDoc(doc(firestoreDb, 'games', String(id)));
+    fsGetDocs = getDocs;
+    setCloudStatus('ok');
+  } catch(e) {
+    console.warn('Firebase init failed:', e);
+    setCloudStatus('error');
+  }
+}
+
+function setCloudStatus(status) {
+  const btn = document.getElementById('btnCloud');
+  if (!btn) return;
+  if (status === 'ok')      btn.title = 'Nube conectada';
+  if (status === 'error')   btn.title = 'Sin conexión a la nube';
+  if (status === 'loading') btn.title = 'Conectando...';
+}
+
+// ===== MANUAL CLOUD SYNC =====
+async function uploadToCloud() {
+  const btn = document.getElementById('btnCloudUpload');
+  btn.disabled = true; btn.textContent = 'Conectando...';
+  // Wait up to 5s for Firebase
+  let waited = 0;
+  while (!fsSetDoc && waited < 50) { await new Promise(r => setTimeout(r, 100)); waited++; }
+  if (!fsSetDoc) { showCloudHint('Sin conexión a la nube', 'err'); btn.disabled = false; btn.textContent = '↑ Subir a la nube'; return; }
+  btn.textContent = 'Subiendo...';
+  try {
+    for (const g of games) await fsSetDoc(g.id, g);
+    showCloudHint(`✓ ${games.length} juegos subidos a la nube`);
+  } catch(e) {
+    showCloudHint('Error al subir: ' + e.message, 'err');
+  } finally { btn.disabled = false; btn.textContent = '↑ Subir a la nube'; }
+}
+
+async function downloadFromCloud() {
+  const btn = document.getElementById('btnCloudDownload');
+  btn.disabled = true; btn.textContent = 'Conectando...';
+  let waited = 0;
+  while (!fsGetDocs && waited < 50) { await new Promise(r => setTimeout(r, 100)); waited++; }
+  if (!fsGetDocs) { showCloudHint('Sin conexión a la nube', 'err'); btn.disabled = false; btn.textContent = '↓ Bajar de la nube'; return; }
+  btn.textContent = 'Bajando...';
+  try {
+    const snapshot = await fsGetDocs(fsCollection());
+    const cloudGames = snapshot.docs.map(d => ({ ...d.data(), id: Number(d.id) }));
+    if (cloudGames.length === 0) { showCloudHint('La nube está vacía', 'err'); btn.disabled = false; btn.textContent = '↓ Bajar de la nube'; return; }
+    await dbClearAll();
+    for (const g of cloudGames) await dbPutLocal(g);
+    games = cloudGames;
+    render();
+    showCloudHint(`✓ ${games.length} juegos bajados de la nube`);
+  } catch(e) {
+    showCloudHint('Error al bajar: ' + e.message, 'err');
+  } finally { btn.disabled = false; btn.textContent = '↓ Bajar de la nube'; }
+}
+
+function showCloudHint(msg, type = 'ok') {
+  const el = document.getElementById('cloudHint');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = `backup-hint ${type}`;
+  setTimeout(() => { el.textContent = ''; el.className = 'backup-hint'; }, 3500);
+}
+
+
+
+// ===== LOCAL SAVE/DELETE =====
 async function saveGame(game) { await dbPutLocal(game); }
 async function deleteGame(id) { await dbDeleteLocal(id); }
 
@@ -87,11 +183,6 @@ function render() {
   } else {
     list.sort((a, b) => (b.customDate || b.id) - (a.customDate || a.id));
     if (sortDir === 'asc') list.reverse();
-  }
-
-  // Apply search filter
-  if (searchQuery) {
-    list = list.filter(g => g.name.toLowerCase().includes(searchQuery));
   }
 
   if (list.length === 0) {
@@ -393,26 +484,6 @@ document.querySelectorAll('.itab').forEach(btn => {
 
 document.getElementById('btnAdd').addEventListener('click', openAdd);
 
-// ===== SEARCH =====
-
-document.getElementById('btnSearch').addEventListener('click', () => {
-  const bar = document.getElementById('searchBar');
-  bar.style.display = 'flex';
-  document.getElementById('searchInput').focus();
-});
-
-document.getElementById('btnSearchClose').addEventListener('click', () => {
-  searchQuery = '';
-  document.getElementById('searchInput').value = '';
-  document.getElementById('searchBar').style.display = 'none';
-  render();
-});
-
-document.getElementById('searchInput').addEventListener('input', e => {
-  searchQuery = e.target.value.trim().toLowerCase();
-  render();
-});
-
 // ===== SETTINGS =====
 const ACCENT_PRESETS = [
   '#e8ff47','#ff4757','#ff6b35','#ffd32a','#2ed573',
@@ -464,6 +535,17 @@ document.getElementById('btnSaveSettings').addEventListener('click', () => {
 });
 
 document.getElementById('btnSettings').addEventListener('click', openSettings);
+document.getElementById('btnCloud').addEventListener('click', () => {
+  document.getElementById('cloudOverlay').classList.add('open');
+});
+document.getElementById('btnCloseCloud').addEventListener('click', () => {
+  document.getElementById('cloudOverlay').classList.remove('open');
+});
+document.getElementById('cloudOverlay').addEventListener('click', e => {
+  if (e.target.id === 'cloudOverlay') document.getElementById('cloudOverlay').classList.remove('open');
+});
+document.getElementById('btnCloudUpload').addEventListener('click', uploadToCloud);
+document.getElementById('btnCloudDownload').addEventListener('click', downloadFromCloud);
 document.getElementById('settingsOverlay').addEventListener('click', e => {
   if (e.target.id === 'settingsOverlay') document.getElementById('settingsOverlay').classList.remove('open');
 });
@@ -652,4 +734,6 @@ window.addEventListener('load', async () => {
   render();
   setTimeout(() => document.getElementById('splash').classList.add('out'), 800);
 
+  // Init Firebase in background (no auto-sync)
+  initFirebase();
 });
