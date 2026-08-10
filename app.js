@@ -1,6 +1,54 @@
 'use strict';
 
+// ===== STATE =====
+let games = [];
+let currentView = localStorage.getItem('completados_view') || 'grid3';
+let currentSort = localStorage.getItem('completados_sort') || 'recent';
+let sortDir = localStorage.getItem('completados_dir') || 'desc';
+let imgTab = 'url';
+let pendingImg = null;
+let detailId = null;
+let searchQuery = '';
+
 // ===== LOCAL SAVE/DELETE =====
+// ===== INDEXEDDB =====
+let db;
+function openDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('gameshelf', 2);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('games')) d.createObjectStore('games', { keyPath: 'id' });
+    };
+    req.onsuccess = e => { db = e.target.result; res(db); };
+    req.onerror = () => rej(req.error);
+  });
+}
+function dbGetAll() {
+  return new Promise((res, rej) => {
+    const tx = db.transaction('games','readonly');
+    const req = tx.objectStore('games').getAll();
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+function dbPutLocal(game) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction('games','readwrite');
+    const req = tx.objectStore('games').put(game);
+    req.onsuccess = () => res();
+    req.onerror = () => rej(req.error);
+  });
+}
+function dbDeleteLocal(id) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction('games','readwrite');
+    const req = tx.objectStore('games').delete(Number(id));
+    req.onsuccess = () => res();
+    req.onerror = () => rej(req.error);
+  });
+}
+
 async function saveGame(game) { await dbPutLocal(game); }
 async function deleteGame(id) { await dbDeleteLocal(id); }
 
@@ -346,7 +394,6 @@ document.querySelectorAll('.itab').forEach(btn => {
 document.getElementById('btnAdd').addEventListener('click', openAdd);
 
 // ===== SEARCH =====
-let searchQuery = '';
 
 document.getElementById('btnSearch').addEventListener('click', () => {
   const bar = document.getElementById('searchBar');
