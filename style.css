@@ -44,7 +44,7 @@ body { font-family: 'Roboto', sans-serif; color: #f0ede6; overscroll-behavior: n
 .app-logo { font-size: 20px; color: var(--accent); }
 .app-name { font-family: 'Roboto', sans-serif; font-size: 22px; font-weight: 900; letter-spacing: 0px; color: var(--text); }
 .topbar-right { display: flex; align-items: center; gap: 12px; }
-.game-count { font-size: 12px; color: var(--muted); font-weight: 400; }
+.game-count { font-size: 11px; color: var(--muted); font-weight: 400; flex: 1; text-align: center; }
 .icon-btn {
   width: 36px; height: 36px; border-radius: 10px;
   background: var(--accent); color: var(--bg); border: none;
